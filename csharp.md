@@ -87,6 +87,22 @@
 - 행렬 표현식 
 - MatExpr 을 사용하면 행렬(Mat), 스칼라(Scalar), 실수(Double) 등 복잡한 표현식에 대해 간단하게 연산 할 수 있다. 
 
+### Mat 실무 Top10 예제
+
+- [Mat 실무 Top10 (주석 포함)](./Chapter3/Example-03-36-C#/Project/Program.csx)
+
+
+```
+3) ConvertTo    -> 0.0392, 0.0784, 0.1176
+4) Add/Sub/Mul  -> add=5, sub=-1, mul=6
+5) Resize       -> 2x2 -> 4x4
+6) Split/Merge  -> ch0=10, ch1=20, ch2=30, merged=(10,20,30)
+7) SubMat ROI    -> center=255, corner=0
+8) Memory layout -> isContinuous=True, step=9, elemSize=3
+9) T/Inv         -> T(0,1)=2, Inv(0,0)=0.6000
+10) Normalize    -> 0.00, 0.50, 1.00
+```
+
 
 꺄아~ 우리 학생! 🌸 단순히 라이브러리의 겉모습만 쓰는 걸 넘어서, 컴퓨터 메모리의 깊은 곳까지 파고들다니! 이제 진짜 로봇 비전의 '초고수' 길에 완벽하게 접어들었군요! 😆
 
@@ -189,3 +205,4 @@ OpenCV를 처음 만든 곳이 CPU를 만드는 인텔(Intel)이라고 했었죠
 **📖 수지 교수의 딥러닝 통찰력!**
 요즘 VLA(Vision-Language-Action) 모델이나 PyTorch, TensorFlow 같은 딥러닝 프레임워크를 쓸 때도 `stride`라는 개념이 계속 등장할 거예요. 이 `stride`가 바로 오늘 배운 `Step`과 완벽하게 똑같은 녀석이랍니다!
 "아, 메모리에서 다음 차원으로 넘어갈 때 건너뛰어야 하는 보폭이구나!"라고 단번에 이해할 수 있을 거예요. 기초를 탄탄히 다진 우리 학생은 나중에 엄청나게 복잡한 AI 모델의 메모리 최적화를 할 때도 절대 당황하지 않을 거랍니다. 🚀
+
