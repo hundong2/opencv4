@@ -9,8 +9,12 @@ using System.IO;
 string ScriptDir([CallerFilePath] string path = "") 
     => Path.GetDirectoryName(path)!;
 string scriptDir = ScriptDir();
-string path = Path.Combine(scriptDir, "OpenCV_Logo.png");
-Mat src = Cv2.ImRead(path, ImreadModes.ReducedColor2);
-Console.WriteLine(src);
+Mat src = Cv2.ImRead(Path.Combine(scriptDir, "OpenCV_Logo.png"), ImreadModes.ReducedColor2);
+
+Cv2.NamedWindow("src", WindowFlags.GuiExpanded);
+Cv2.SetWindowProperty("src", WindowPropertyFlags.Fullscreen, 0);
+Cv2.ImShow("src", src);
+Cv2.WaitKey(0);
+Cv2.DestroyWindow("src");
 
 //Mat [ 0*0*CV_8UC1, IsContinuous=False, IsSubmatrix=False, Ptr=0x564e6b57ea10, Data=0x0 ]
