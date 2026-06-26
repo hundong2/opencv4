@@ -1,5 +1,13 @@
 # C#과 파이썬을 활용한 OpenCV4 프로그래밍 (개정판)
 
+- install dotnet script
+
+```sh
+#for window
+dotnet tool install -g dotnet-script
+
+```
+
 ![opencv4-rev.jpg](opencv4-rev.jpg)
 
 예제 코드 및 데이터 파일입니다. 책에 기술된 예제들은 각 Chapter 폴더에 포함돼 있습니다.
