@@ -1,62 +1,59 @@
 // NuGet에서 OpenCvSharp4 라이브러리 참조 (버전: 4.13.0.20260602)
 // #r "nuget: OpenCvSharp4, 4.13.0.20260602"
-// // Linux x64 환경용 OpenCV 네이티브 런타임 바이너리 참조
+// // Linux x64 환경용 OpenCV 네이티브 바이너리 참조
 // #r "nuget: OpenCvSharp4.official.runtime.linux-x64, 4.13.0.20260602"
 
 #r "nuget: OpenCvSharp4, 4.13.0.20260602"
-#r "nuget: OpenCvSharp4.Windows, 4.13.0.20260602" // ✅ Windows용
-
+#r "nuget: OpenCvSharp4.Windows, 4.13.0.20260602" // Windows용 런타임
 using System;
 using OpenCvSharp;
-using System.Runtime.CompilerServices;  // CallerFilePath 어트리뷰트 사용에 필요
+using System.Runtime.CompilerServices;  // CallerFilePath 특성을 사용하기 위해 필요
 using System.IO;
 
-string ScriptDir([CallerFilePath] string path = "") 
+// ScriptDir 함수는 현재 실행 중인 .csx 파일의 경로를 기준으로
+// 예제 이미지가 있는 폴더 위치를 구할 때 사용한다.
+string ScriptDir([CallerFilePath] string path = "")
     => Path.GetDirectoryName(path)!;
 
 // 현재 스크립트 파일이 위치한 디렉터리 경로
 string scriptDir = ScriptDir();
 
-// 예제 이미지를 컬러로 읽어온다.
-// 코너 검출 자체는 밝기 변화만으로 수행하지만,
-// 검출된 위치를 노란색/빨간색 점으로 표시하기 위해 원본 컬러 이미지를 사용한다.
+// ImRead 함수는 지정한 경로의 이미지를 Mat 객체로 읽어 온다.
+// 여기서는 코너 검출 결과를 색상 점으로 표시해야 하므로 컬러 원본 이미지를 유지한다.
 Mat src = Cv2.ImRead(Path.Combine(scriptDir, "bin/Debug/dummy.jpg"));
 
 // gray : 코너 검출에 사용할 흑백 이미지
-// dst  : 검출 결과를 그릴 출력 이미지
+// dst  : 검출 결과를 그려 넣을 출력 이미지
 Mat gray = new Mat();
 Mat dst = src.Clone();
 
-// BGR 컬러 이미지를 그레이스케일로 변환한다.
-// 코너는 색상 자체보다 "밝기가 여러 방향으로 급격히 변하는 지점"이므로,
-// 보통 1채널 흑백 이미지에서 검출한다.
+// CvtColor 함수는 이미지의 색상 공간을 변환한다.
+// GoodFeaturesToTrack은 밝기 변화로 코너를 찾으므로 BGR 컬러 이미지를
+// 1채널 그레이스케일 이미지로 변환해서 사용한다.
 Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
 
-// GoodFeaturesToTrack는 추적하기 좋은 특징점, 즉 코너 후보를 찾는 함수이다.
+// GoodFeaturesToTrack 함수는 추적하기 좋은 특징점, 즉 코너 후보를 찾는다.
 //
-// 기초 개념:
-// - 평탄한 영역: 어느 방향으로 움직여도 밝기 변화가 거의 없음 → 특징점으로 부적합
-// - 선/엣지: 한 방향으로는 밝기 변화가 크지만, 선을 따라 움직이면 변화가 작음
-// - 코너: x/y 여러 방향으로 모두 밝기 변화가 큼 → 위치를 다시 찾기 쉬움
-//
-// 그래서 코너는 객체 추적, 카메라 움직임 추정, 이미지 정합에서 좋은 기준점이 된다.
+// 기본 개념:
+// - 평탄한 영역: 어느 방향으로 움직여도 밝기 변화가 거의 없어 특징점으로 부적합
+// - 에지: 한 방향으로는 밝기 변화가 크지만 다른 방향으로는 변화가 작음
+// - 코너: x/y 여러 방향 모두에서 밝기 변화가 커서 다시 찾기 쉬운 위치
 //
 // 매개변수:
 // gray        : 입력 흑백 이미지
 // 100         : 최대 100개의 코너만 반환
 // 0.03        : qualityLevel. 가장 강한 코너 응답의 3% 이상인 점만 사용
-// 5           : minDistance. 검출된 코너들 사이의 최소 거리
+// 5           : minDistance. 검출된 코너 사이의 최소 거리
 // null        : mask. null이면 이미지 전체에서 찾음
 // 3           : blockSize. 코너 판단에 사용할 주변 영역 크기
 // false       : useHarrisDetector. false면 Shi-Tomasi 방식 사용
-// 0           : Harris 방식에서 쓰는 k값. 여기서는 false라 거의 영향 없음
+// 0           : Harris 방식에서 쓰는 k값. 여기서는 false이므로 영향 없음
 Point2f[] corners = Cv2.GoodFeaturesToTrack(gray, 100, 0.03, 5, null, 3, false, 0);
 
-// CornerSubPix는 정수 픽셀 단위로 찾은 코너 위치를 더 정밀하게 보정한다.
-//
-// GoodFeaturesToTrack 결과는 대략적인 픽셀 위치이다.
-// 하지만 실제 코너는 픽셀과 픽셀 사이의 소수점 좌표에 있을 수 있다.
-// CornerSubPix는 주변 밝기 패턴을 반복적으로 분석해 코너 위치를 서브픽셀 단위로 개선한다.
+// CornerSubPix 함수는 정수 픽셀 단위로 찾은 코너 위치를 더 정밀하게 보정한다.
+// GoodFeaturesToTrack 결과는 대략적인 픽셀 위치이지만, 실제 코너는 픽셀과 픽셀 사이의
+// 소수점 좌표에 있을 수 있다. CornerSubPix는 주변 밝기 패턴을 반복 분석해
+// 서브픽셀 단위의 더 정확한 좌표를 계산한다.
 //
 // 매개변수:
 // gray              : 입력 흑백 이미지
@@ -67,24 +64,27 @@ Point2f[] corners = Cv2.GoodFeaturesToTrack(gray, 100, 0.03, 5, null, 3, false, 
 // (10, 0.03)        : 최대 10번 반복하거나 위치 변화가 0.03보다 작아지면 종료
 Point2f[] sub_corners = Cv2.CornerSubPix(gray, corners, new Size(3, 3), new Size(-1, -1), TermCriteria.Both(10, 0.03));
 
-// GoodFeaturesToTrack로 처음 찾은 코너 후보를 노란색 점으로 표시한다.
-// Point2f는 소수점 좌표를 가질 수 있지만, Circle로 그릴 때는 정수 Point로 변환한다.
+// Circle 함수는 이미지 위에 원을 그린다.
+// 먼저 GoodFeaturesToTrack으로 찾은 원래 코너 후보를 노란색 원으로 표시한다.
+// Point2f는 소수점 좌표를 가지지만, 화면에 그릴 때는 정수 Point로 변환한다.
 for (int i = 0; i < corners.Length; i++)
 {
     Point pt = new Point((int)corners[i].X, (int)corners[i].Y);
     Cv2.Circle(dst, pt, 5, Scalar.Yellow, Cv2.FILLED);
 }
 
-// CornerSubPix로 보정한 코너 위치를 빨간색 점으로 표시한다.
-// 노란색 점과 빨간색 점이 살짝 어긋나 보이면,
-// 서브픽셀 보정으로 위치가 더 정밀하게 이동했다는 의미이다.
+// CornerSubPix로 보정한 코너 위치를 빨간색 원으로 표시한다.
+// 노란색 원과 빨간색 원이 조금 어긋나 보이면 서브픽셀 보정으로
+// 좌표가 더 정밀한 위치로 이동했다는 뜻이다.
 for (int i = 0; i < sub_corners.Length; i++)
 {
     Point pt = new Point((int)sub_corners[i].X, (int)sub_corners[i].Y);
     Cv2.Circle(dst, pt, 5, Scalar.Red, Cv2.FILLED);
 }
 
-// 결과 이미지 표시
+// ImShow 함수는 지정한 이름의 창에 이미지를 표시한다.
+// WaitKey(0)는 키 입력이 있을 때까지 창을 유지하고,
+// DestroyAllWindows는 열린 OpenCV 창을 모두 닫는다.
 Cv2.ImShow("dst", dst);
 Cv2.WaitKey(0);
 Cv2.DestroyAllWindows();
