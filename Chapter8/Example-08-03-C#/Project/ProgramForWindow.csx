@@ -22,8 +22,13 @@ using System.IO;
 string ScriptDir([CallerFilePath] string path = "")
     => Path.GetDirectoryName(path)!;
 
-// 현재 스크립트 파일이 위치한 디렉터리 경로
+// 현재 스크립트 파일이 위치한 디렉터리 경로(Project 폴더)
 string scriptDir = ScriptDir();
+
+// Fashion-MNIST 데이터는 Project 폴더 안이 아니라 예제 폴더 바로 아래의 temp 폴더에 있다.
+// scriptDir의 상위 폴더를 구해서 Example-08-03-C# 폴더 기준 경로를 만든다.
+string exampleDir = Directory.GetParent(scriptDir)!.FullName;
+string dataDir = Path.Combine(exampleDir, "temp");
 
 static Tuple<float[], int[]> loadTrainData(string image_path, string label_path, int length)
 {
@@ -52,10 +57,18 @@ static Tuple<float[], int[]> loadTrainData(string image_path, string label_path,
     }
 }
 
-Tuple<float[], int[]> train = loadTrainData(Path.Combine(scriptDir, "fashion-mnist/train-images-idx3-ubyte"), Path.Combine(scriptDir, "fashion-mnist/train-labels-idx1-ubyte"), 60000);
-Tuple<float[], int[]> test = loadTrainData(Path.Combine(scriptDir, "fashion-mnist/t10k-images-idx3-ubyte"), Path.Combine(scriptDir, "fashion-mnist/t10k-labels-idx1-ubyte"), 10000);
+Tuple<float[], int[]> train = loadTrainData(Path.Combine(dataDir, "train-images-idx3-ubyte"), Path.Combine(dataDir, "train-labels-idx1-ubyte"), 60000);
+Tuple<float[], int[]> test = loadTrainData(Path.Combine(dataDir, "t10k-images-idx3-ubyte"), Path.Combine(dataDir, "t10k-labels-idx1-ubyte"), 10000);
 
-Mat train_x = new Mat(60000, 784, MatType.CV_32F, train.Item1);
-Mat train_y = new Mat(1, 60000, MatType.CV_32S, train.Item2);
-Mat test_x = new Mat(10000, 784, MatType.CV_32F, test.Item1);
-Mat test_y = new Mat(1, 10000, MatType.CV_32S, test.Item2);
+Mat train_x = Mat.FromPixelData(60000, 784, MatType.CV_32F, train.Item1);
+Mat train_y = Mat.FromPixelData(1, 60000, MatType.CV_32S, train.Item2);
+Mat test_x = Mat.FromPixelData(10000, 784, MatType.CV_32F, test.Item1);
+Mat test_y = Mat.FromPixelData(1, 10000, MatType.CV_32S, test.Item2);
+int num = 0;
+float[] image_array = new float[784];
+Array.Copy(train.Item1, 784 * num, image_array, 0, 784);
+Mat image = Mat.FromPixelData(28, 28, MatType.CV_32F, image_array);
+image.ConvertTo(image, MatType.CV_8UC1);
+Cv2.ImShow("image", image);
+Cv2.WaitKey();
+Cv2.DestroyAllWindows();
