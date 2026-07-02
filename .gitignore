@@ -30,3 +30,4 @@ publish/
 *.log
 *.binlog
 *.png
+temp/
