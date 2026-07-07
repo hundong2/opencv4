@@ -37,114 +37,56 @@ static string ScriptDir([CallerFilePath] string path = "")
 
 // 현재 스크립트 파일이 위치한 디렉터리 경로(Project 폴더)
 static readonly string scriptDir = ScriptDir();
-string modelPath = Path.Combine(scriptDir, "temp/yolov7.onnx");
-string classesPath = Path.Combine(scriptDir, "temp/coco.names");
-string imagePath = Path.Combine(scriptDir, "bin/Debug/umbrella.jpg");
-
-if (!File.Exists(modelPath))
-    throw new FileNotFoundException($"YOLOv7 모델 파일을 찾을 수 없습니다: {modelPath}");
-if (!File.Exists(classesPath))
-    throw new FileNotFoundException($"COCO 클래스 파일을 찾을 수 없습니다: {classesPath}");
-if (!File.Exists(imagePath))
-    throw new FileNotFoundException($"입력 이미지를 찾을 수 없습니다: {imagePath}");
-
-string[] classNames = File.ReadAllLines(classesPath);
+string cfgFile = Path.Combine(scriptDir, "temp/yolov3.cfg");
+string darknetModel = Path.Combine(scriptDir, "temp/yolov3.weights");
+string[] classNames = File.ReadAllLines(Path.Combine(scriptDir, "temp/coco.names"));
 
 List<string> labels = new List<string>();
 List<float> scores = new List<float>();
 List<Rect> bboxes = new List<Rect>();
 
-Mat image = Cv2.ImRead(imagePath);
-Net net = CvDnn.ReadNetFromOnnx(modelPath);
-
-// YOLOv7 입력 전처리: 640x640, [0,1] 스케일링, 채널 순서 BGR->RGB 변환(swapRB=true)
-const int inputWidth = 640;
-const int inputHeight = 640;
-Mat inputBlob = CvDnn.BlobFromImage(
-    image,
-    scalefactor: 1 / 255.0,
-    size: new Size(inputWidth, inputHeight),
-    mean: Scalar.All(0),
-    swapRB: true,
-    crop: false);
+Mat image = new Mat(Path.Combine(scriptDir, "bin/Debug/umbrella.jpg"));
+Net net = Net.ReadNetFromDarknet(cfgFile, darknetModel);
+Mat inputBlob = CvDnn.BlobFromImage(image, 1/255f, new Size(416, 416), crop:false);
 
 net.SetInput(inputBlob);
+var outBlobNames = net.GetUnconnectedOutLayersNames();
+var outputBlobs = outBlobNames.Select(toMat => new Mat()).ToArray();
 
-// 대부분의 YOLOv7 ONNX는 단일 출력(예: [1, 25200, 85])을 가진다.
-Mat output = net.Forward();
-Mat detections = output;
-
-if (output.Dims == 3)
+net.Forward(outputBlobs, outBlobNames);
+foreach (Mat prob in outputBlobs)
 {
-    // [1, N, C] -> [N, C] 형태로 변환
-    detections = output.Reshape(1, output.Size(1));
+    for (int p = 0; p < prob.Rows; p++)
+    {
+        float confidence = prob.At<float>(p, 4);
+        if (confidence > 0.9)
+        {
+            Cv2.MinMaxLoc(prob.Row(p).ColRange(5, prob.Cols), out _, out _, out _, out Point classNumber);
+
+            int classes = classNumber.X;
+            float probability = prob.At<float>(p, classes + 5);
+
+            if (probability > 0.9)
+            {
+                float centerX = prob.At<float>(p, 0) * image.Width;
+                float centerY = prob.At<float>(p, 1) * image.Height;
+                float width = prob.At<float>(p, 2) * image.Width;
+                float height = prob.At<float>(p, 3) * image.Height;
+
+                labels.Add(classNames[classes]);
+                scores.Add(probability);
+                bboxes.Add(new Rect((int)centerX - (int)width / 2, (int)centerY - (int)height / 2, (int)width, (int)height));
+            }
+        }
+    }
 }
 
-// 임계값
-const float confThreshold = 0.25f;
-const float scoreThreshold = 0.25f;
-const float nmsThreshold = 0.45f;
-
-for (int r = 0; r < detections.Rows; r++)
-{
-    float objectness = detections.At<float>(r, 4);
-    if (objectness < confThreshold)
-        continue;
-
-    // 클래스 점수(5번째 이후) 중 최대값 탐색
-    Cv2.MinMaxLoc(
-        detections.Row(r).ColRange(5, detections.Cols),
-        out _,
-        out double maxClassScore,
-        out _,
-        out Point maxClassLoc);
-
-    float classScore = (float)maxClassScore;
-    float confidence = objectness * classScore;
-    if (classScore < scoreThreshold || confidence < confThreshold)
-        continue;
-
-    int classId = maxClassLoc.X;
-
-    // 출력 좌표는 입력 해상도(640x640) 기준이므로 원본 해상도로 스케일링
-    float cx = detections.At<float>(r, 0);
-    float cy = detections.At<float>(r, 1);
-    float w = detections.At<float>(r, 2);
-    float h = detections.At<float>(r, 3);
-
-    int left = (int)((cx - w / 2f) * image.Width / inputWidth);
-    int top = (int)((cy - h / 2f) * image.Height / inputHeight);
-    int boxWidth = (int)(w * image.Width / inputWidth);
-    int boxHeight = (int)(h * image.Height / inputHeight);
-
-    // 박스가 화면을 벗어나지 않도록 보정
-    left = Math.Max(0, left);
-    top = Math.Max(0, top);
-    boxWidth = Math.Min(boxWidth, image.Width - left);
-    boxHeight = Math.Min(boxHeight, image.Height - top);
-
-    if (boxWidth <= 0 || boxHeight <= 0)
-        continue;
-
-    string className = classId < classNames.Length ? classNames[classId] : $"class_{classId}";
-    labels.Add(className);
-    scores.Add(confidence);
-    bboxes.Add(new Rect(left, top, boxWidth, boxHeight));
-}
-
-CvDnn.NMSBoxes(bboxes, scores, confThreshold, nmsThreshold, out int[] indices);
+CvDnn.NMSBoxes(bboxes, scores, 0.9f, 0.5f, out int[] indices);
 
 foreach (int i in indices)
 {
-    Cv2.Rectangle(image, bboxes[i], Scalar.Red, 2);
-    Cv2.PutText(
-        image,
-        $"{labels[i]} {scores[i]:P1}",
-        new Point(bboxes[i].X, Math.Max(20, bboxes[i].Y - 5)),
-        HersheyFonts.HersheySimplex,
-        0.6,
-        Scalar.Yellow,
-        2);
+    Cv2.Rectangle(image, bboxes[i], Scalar.Red, 1);
+    Cv2.PutText(image, labels[i], bboxes[i].Location, HersheyFonts.HersheyComplex, 1.0, Scalar.Red);
 }
 
 Cv2.ImShow("image", image);
